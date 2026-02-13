@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import { matchRouter } from './routes/matches.js';
 
 dotenv.config();
 
@@ -11,6 +12,8 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.send('Welcome to the Sports API!');
 });
+
+app.use('/matches', matchRouter)
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
