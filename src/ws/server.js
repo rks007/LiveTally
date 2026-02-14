@@ -23,32 +23,45 @@ function broadcast(wss, payload){
 
 export function attachWebSocketServer(server) {
     const wss = new WebSocketServer({
-        server,
+        noServer: true,
         path: "/ws",
         maxPayload: 1024 * 1024, // 1MB
     })
 
-    wss.on("connection", async (socket, req) => {
+    server.on('upgrade', async (req, socket, head) => {
+        const { pathname } = new URL(req.url, `http://${req.headers.host}`);
 
-        if(wsArcjet) {
+        if (pathname !== '/ws') {
+            return;
+        }
+
+        if (wsArcjet) {
             try {
-
                 const decision = await wsArcjet.protect(req);
 
-                if(decision.isDenied()) {
-                    const code = decision.reason.isRateLimit() ? 1013 : 1008; // 1013: Try Again Later, 1008:  Policy Violation
-                    const reason = decision.reason.isRateLimit() ? 'Rate limit exceeded. Please try again later.' : 'Forbidden. Connection denied.';
-
-                    socket.close(code, reason);
+                if (decision.isDenied()) {
+                    if (decision.reason.isRateLimit()) {
+                        socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+                    } else {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    }
+                    socket.destroy();
                     return;
                 }
-                
-            } catch (error) {
-                console.error("WS connection error", error);
-                socket.close(1011, "Server Security Error");
+            } catch (e) {
+                console.error('WS upgrade protection error', e);
+                socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+                socket.destroy();
                 return;
             }
         }
+
+        wss.handleUpgrade(req, socket, head, (ws) => {
+            wss.emit('connection', ws, req);
+        });
+    });
+
+    wss.on("connection", async (socket, req) => {
 
         socket.isAlive = true;
         socket.on("pong", () => {
