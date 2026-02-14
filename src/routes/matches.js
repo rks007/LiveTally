@@ -53,7 +53,13 @@ matchRouter.post('/', async (req, res) => {
             homeScore: homeScore ?? 0,
             awayScore: awayScore ?? 0,
             status: getMatchStatus(startTime, endTime),
-        }).returning();
+    }).returning();
+
+    // Broadcast the new match to all connected WebSocket clients
+    if(res.app.locals.broadcastMatchCreated){
+        res.app.locals.broadcastMatchCreated(event);
+    }
+
 
     res.status(201).json({ data: event });
 
